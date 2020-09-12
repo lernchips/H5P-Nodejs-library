@@ -45,6 +45,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
                 'id INT UNSIGNED NOT NULL AUTO_INCREMENT, ' +
                 'content JSON NOT NULL, ' +
                 'metadata JSON NOT NULL, ' +
+                'urlalias CHAR(10) NOT NULL,' +
                 'PRIMARY KEY (id),' +
                 'CHECK (JSON_VALID(content)), ' +
                 'CHECK (JSON_VALID(metadata))' +
@@ -68,7 +69,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
 
             const updateExisting = contentId !== undefined && contentId !== null;
             if (updateExisting) {
-                this._connection.query('UPDATE content SET metadata = ?, content = ? WHERE id = ?', [metadataJson, contentJson, contentId], function (error, results, fields){
+                this._connection.query('UPDATE content SET metadata = ?, content = ? WHERE urlalias = ?', [metadataJson, contentJson, contentId], function (error, results, fields){
                     if (error) {
                         reject(error);
                     }
@@ -76,12 +77,18 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
                     resolve(contentId);
                 });
             } else {
-                this._connection.query('INSERT INTO content(metadata, content) VALUES (?, ?)', [metadataJson, contentJson], function (error, results, fields){
+                this._connection.query('INSERT INTO content(metadata, content, urlalias) VALUES (?, ?, substring(MD5(RAND()),1,10))', [metadataJson, contentJson], function (error, results, fields){
                     if (error) {
                         reject(error);
                     }
 
-                    resolve(results.insertId);
+                    this._connection.query('SELECT urlalias FROM content WHERE id = ?', [results.insertId], function (error, results, fields){
+                        if (error) {
+                            reject(error);
+                        }
+
+                        resolve(results[0].urlalias);
+                    });
                 });
             }
         });
@@ -104,7 +111,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
 
     public async contentExists(contentId: ContentId): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            this._connection.query('SELECT count(*) as count FROM content WHERE id = ?', [contentId], function (error, results, fields){
+            this._connection.query('SELECT count(*) as count FROM content WHERE urlalias = ?', [contentId], function (error, results, fields){
                 if (error) {
                     reject(error);
                 }
@@ -126,7 +133,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
             await fsExtra.remove(contentPath);
         }
 
-        this._connection.query('DELETE FROM content WHERE id = ?', [contentId], function (error, results, fields){
+        this._connection.query('DELETE FROM content WHERE urlalias = ?', [contentId], function (error, results, fields){
             if (error) {
                 throw error;
             }
@@ -219,7 +226,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
         user?: IUser
     ): Promise<IContentMetadata> {
         return new Promise((resolve, reject) => {
-            this._connection.query('SELECT metadata FROM content WHERE id = ?', [contentId], function (error, results, fields){
+            this._connection.query('SELECT metadata FROM content WHERE urlalias = ?', [contentId], function (error, results, fields){
                 if (error) {
                     reject(error);
                 }
@@ -240,7 +247,7 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
         user?: IUser
     ): Promise<ContentParameters> {
         return new Promise((resolve, reject) => {
-            this._connection.query('SELECT content FROM content WHERE id = ?', [contentId], function (error, results, fields){
+            this._connection.query('SELECT content FROM content WHERE urlalias = ?', [contentId], function (error, results, fields){
                 if (error) {
                     reject(error);
                 }
@@ -297,16 +304,16 @@ export default class ChipfabrikMySqlContentStorage implements IContentStorage {
 
     public async listContent(user?: IUser): Promise<ContentId[]> {
         return new Promise((resolve, reject) => {
-            this._connection.query('SELECT id FROM content WHERE metadata IS NOT NULL', function (error, results, fields){
+            this._connection.query('SELECT urlalias FROM content WHERE metadata IS NOT NULL', function (error, results, fields){
                 if (error) {
                     reject(error);
                 }
 
-                const ids = results.map((row : any) => {
-                    return row.id;
+                const urlaliases = results.map((row : any) => {
+                    return row.urlalias;
                 })
 
-                resolve(ids);
+                resolve(urlaliases);
             });
         });
     }
