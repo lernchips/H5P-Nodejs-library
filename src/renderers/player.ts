@@ -6,6 +6,7 @@ export default (model) => `<!doctype html>
     ${model.styles
         .map((style) => `<link rel="stylesheet" href="${style}"/>`)
         .join('\n    ')}
+    <link rel="stylesheet" href="/h5p/core/styles/chipfabrik.css"/>
     ${model.scripts
         .map((script) => `<script src="${script}"></script>`)
         .join('\n    ')}
